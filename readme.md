@@ -1,5 +1,8 @@
-This is a WIP Project. More info will be avaliable soon.
+This is a very-personal project, it is public tho i wont give any 
+documentation yet because some things are hard-coded for now.
 
-NANOverlay is a program that allows an overlay to appear after pressing a combinatsion of buttons.
-This overlay can display "Apps" inside of it, that can be interacted with within the overlay.
-Apps can be freely created by users, and a documentation will be released after this program exits the "WIP" phase.
+Once i feel like the program is as i like it and i have the time to do it, i will
+rearrange the program to remove the hardcoded things, and create a documentation
+so that people can create their own apps (plugins) for this overlay
+
+Currently this program is a WIP and is not fully completed.
