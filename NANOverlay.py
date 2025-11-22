@@ -51,57 +51,24 @@ def normalize_hotkey_name(name):
 def ensure_settings_file():
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     if not SETTINGS_FILE.exists():
-        SETTINGS_FILE.write_text(
-            f"key={DEFAULT_TRIGGER_KEY}\npanel_open=0\n",
-            encoding="utf-8",
-        )
-
-
-def read_settings_map():
-    ensure_settings_file()
-    settings = {}
-    for line in SETTINGS_FILE.read_text(encoding="utf-8").splitlines():
-        if "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        settings[k.strip()] = v.strip()
-    return settings
-
-
-def write_settings_map(settings):
-    ensure_settings_file()
-    lines = [f"{key}={value}\n" for key, value in settings.items()]
-    SETTINGS_FILE.write_text("".join(lines), encoding="utf-8")
+        SETTINGS_FILE.write_text(f"key={DEFAULT_TRIGGER_KEY}\n", encoding="utf-8")
 
 
 def load_hotkey_from_file():
-    settings = read_settings_map()
-    value = normalize_hotkey_name(settings.get("key")) if settings else None
-    if value is not None:
-        return value
+    ensure_settings_file()
+    for line in SETTINGS_FILE.read_text(encoding="utf-8").splitlines():
+        if line.startswith("key="):
+            value = normalize_hotkey_name(line[4:])
+            if value is not None:
+                return value
     return save_hotkey_to_file(DEFAULT_TRIGGER_KEY)
 
 
 def save_hotkey_to_file(key_name):
     normalized = normalize_hotkey_name(key_name) or DEFAULT_TRIGGER_KEY
-    settings = read_settings_map()
-    settings["key"] = normalized
-    if "panel_open" not in settings:
-        settings["panel_open"] = "0"
-    write_settings_map(settings)
+    ensure_settings_file()
+    SETTINGS_FILE.write_text(f"key={normalized}\n", encoding="utf-8")
     return normalized
-
-
-def load_panel_open_state():
-    settings = read_settings_map()
-    return settings.get("panel_open", "0") == "1"
-
-
-def save_panel_open_state(is_open):
-    settings = read_settings_map()
-    settings.setdefault("key", DEFAULT_TRIGGER_KEY)
-    settings["panel_open"] = "1" if is_open else "0"
-    write_settings_map(settings)
 
 
 def pynput_key_matches_hotkey(pynput_key, hotkey_name):
@@ -414,10 +381,11 @@ class SettingsPanel(QWidget):
         self.hotkey_input.set_key(key_name)
 
 class Overlay(QWidget):
-    def __init__(self, app_controller, hotkey_name):
+    def __init__(self, app_controller, hotkey_name, panel_open):
         super().__init__()
         self._app_controller = app_controller
         self._hotkey_name = hotkey_name
+        self._panel_open_requested = panel_open
         self.setWindowFlags(
             Qt.FramelessWindowHint |
             Qt.WindowStaysOnTopHint |
@@ -451,7 +419,7 @@ class Overlay(QWidget):
         self.setFocus()
         self._position_button()
         self._center_settings_panel()
-        if load_panel_open_state():
+        if self._panel_open_requested:
             self._show_settings_panel()
         else:
             self.settings_panel.hide()
@@ -499,7 +467,8 @@ class Overlay(QWidget):
         if self.settings_panel.isVisible():
             return
         self._show_settings_panel()
-        save_panel_open_state(True)
+        if self._app_controller is not None:
+            self._app_controller.set_panel_open_state(True)
 
     def _show_settings_panel(self):
         self._center_settings_panel()
@@ -509,7 +478,8 @@ class Overlay(QWidget):
 
     def _on_settings_panel_closed(self):
         self.settings_button.unlock_state()
-        save_panel_open_state(False)
+        if self._app_controller is not None:
+            self._app_controller.set_panel_open_state(False)
 
     def _on_hotkey_changed(self, key_name):
         if key_name == self._hotkey_name:
@@ -546,7 +516,8 @@ class Overlay(QWidget):
                 self._start_fade_out()
                 return
         self._skip_fade = False
-        save_panel_open_state(self.settings_panel.isVisible())
+        if self._app_controller is not None:
+            self._app_controller.set_panel_open_state(self.settings_panel.isVisible())
         self.releaseKeyboard()
         QApplication.restoreOverrideCursor()
         if self._app_controller is not None:
@@ -589,6 +560,7 @@ class AppWithGlobalKeyHandler(QApplication):
         super().__init__(*args, **kwargs)
         self.overlay = None
         self.hotkey_name = load_hotkey_from_file()
+        self.panel_open = False
         self._suspend_hotkey_listener = False
         self.listener = keyboard.Listener(on_press=self.on_key_press)
         self.listener.start()
@@ -606,7 +578,7 @@ class AppWithGlobalKeyHandler(QApplication):
 
     def toggle_overlay(self):
         if self.overlay is None or not self.overlay.isVisible():
-            self.overlay = Overlay(self, self.hotkey_name)
+            self.overlay = Overlay(self, self.hotkey_name, self.panel_open)
             self.overlay.destroyed.connect(self._clear_overlay)
         else:
             self.overlay.close()
@@ -629,6 +601,9 @@ class AppWithGlobalKeyHandler(QApplication):
 
     def set_hotkey_capture(self, active):
         self._suspend_hotkey_listener = active
+
+    def set_panel_open_state(self, is_open):
+        self.panel_open = bool(is_open)
 
 def main():
     app = AppWithGlobalKeyHandler(sys.argv)
