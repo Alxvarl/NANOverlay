@@ -1,0 +1,16 @@
+app_name=Test app
+app_id=alexvarl.testappapp_ver=1.0
+app_build=1
+app_compatibility=<=1
+start_at_launch=true
+window=true
+window_size=150x300
+window_header_size=30
+window_border=true
+window_border_size=1
+window_name=Test app
+custom_button_icon=true
+minimizable=true
+author_name=Alexvarl
+author_website=alexvarl.net
+author_contact=alexvarl@alexvarl.net
